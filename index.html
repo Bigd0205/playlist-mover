@@ -62,6 +62,32 @@
   .err { color: var(--bad); font-size: 14px; }
   .hidden { display: none !important; }
   a { color: var(--accent); }
+  .wiz-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .wiz-part { color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .wiz-track { display: flex; gap: 4px; margin-bottom: 14px; }
+  .wiz-track i { flex: 1; height: 4px; border-radius: 99px; background: var(--line); }
+  .wiz-track i.on { background: var(--accent); }
+  #wizTitle { font-size: 20px; margin-bottom: 8px; }
+  #wizBody p { margin: 8px 0; }
+  .wiz-nav { margin-top: 16px; }
+  .wiz-nav .primary { min-width: 120px; }
+  .bigbtn { display: block; width: 100%; text-align: center; text-decoration: none; padding: 14px; border-radius: 12px;
+    background: #2a313b; color: var(--text); font-weight: 600; margin: 12px 0; }
+  .bigbtn.go { background: var(--accent); color: var(--accent-ink); }
+  .field { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+  .field .lbl { font-size: 13px; color: var(--muted); }
+  .field .val { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .field .val span { flex: 1; word-break: break-all; }
+  .field .val.mono span { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+  .tick { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; cursor: pointer; }
+  .tick input { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--accent); }
+  .tick.done { border-color: #1f5c40; background: #13261d; }
+  .note { font-size: 14px; color: var(--muted); }
+  .okbox { border: 1px solid #1f5c40; background: #13261d; color: var(--accent); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+  .help { margin-top: 12px; font-size: 14px; }
+  .help li { margin: 8px 0; }
+  .linkbtn { background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: inherit; }
+  input.bad { border-color: var(--bad); }
 </style>
 </head>
 <body>
@@ -69,44 +95,23 @@
   <h1>Playlist Mover</h1>
   <div class="sub">Spotify to Tidal. Runs in your browser. Nothing is sent anywhere except Spotify and Tidal.</div>
 
-  <!-- Setup -->
-  <section class="card" id="setupCard">
-    <h2>1. Setup</h2>
-    <p>Paste this exact address into both developer dashboards as the redirect URI:</p>
-    <div class="row"><div class="mono grow" id="redirectUri"></div><button class="small" id="copyRedirect">Copy</button></div>
-    <label for="spClientId">Spotify Client ID</label>
-    <input type="text" id="spClientId" autocomplete="off" spellcheck="false" placeholder="32 characters from developer.spotify.com">
-    <label for="tdClientId">Tidal Client ID</label>
-    <input type="text" id="tdClientId" autocomplete="off" spellcheck="false" placeholder="From developer.tidal.com">
-    <div class="row" style="margin-top:12px"><button class="primary" id="saveCfg">Save</button><span class="err" id="cfgErr"></span></div>
-    <details style="margin-top:12px">
-      <summary>How to get the two Client IDs</summary>
-      <p><b>Spotify</b> (needs Spotify Premium on your account)</p>
-      <ol>
-        <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> and log in.</li>
-        <li>Create app. Any name. Tick <b>Web API</b>.</li>
-        <li>Under Redirect URIs, paste the address above and add it.</li>
-        <li>Save, open the app's Settings, copy the Client ID into the box above.</li>
-        <li>Under User Management, add the email of anyone else who will use it (up to 5 people). You don't need to add yourself.</li>
-      </ol>
-      <p><b>Tidal</b></p>
-      <ol>
-        <li>Go to <a href="https://developer.tidal.com/dashboard" target="_blank" rel="noopener">developer.tidal.com/dashboard</a> and log in with your Tidal account.</li>
-        <li>Create an app. Any name.</li>
-        <li>In the app's settings, add the redirect URI above.</li>
-        <li>Turn on the scopes <b>playlists.read</b>, <b>playlists.write</b>, <b>search.read</b> and <b>user.read</b>.</li>
-        <li>Copy the Client ID into the box above. You don't need the Client Secret.</li>
-      </ol>
-    </details>
+  <!-- Setup guide -->
+  <section class="card hidden" id="wizCard">
+    <div class="wiz-top"><span class="wiz-part" id="wizPart"></span><span class="wiz-count" id="wizCount"></span></div>
+    <div class="wiz-track" id="wizTrack"></div>
+    <h2 id="wizTitle"></h2>
+    <div id="wizBody"></div>
+    <div class="err" id="wizErr"></div>
+    <div class="row wiz-nav"><button id="wizBack">Back</button><span class="grow"></span><button class="primary" id="wizNext">Next</button></div>
   </section>
 
   <!-- Connect -->
   <section class="card hidden" id="connectCard">
-    <h2>2. Connect</h2>
+    <h2>Connected accounts</h2>
     <div class="svc"><span class="dot" id="spDot"></span><span class="grow" id="spStatus">Spotify: not connected</span><button class="small" id="spConnect">Connect</button></div>
     <div class="svc"><span class="dot" id="tdDot"></span><span class="grow" id="tdStatus">Tidal: not connected</span><button class="small" id="tdConnect">Connect</button></div>
     <div class="err" id="connectErr"></div>
-    <div class="row" style="margin-top:6px"><button class="small" id="editSetup">Edit setup</button><button class="small" id="logout">Disconnect both</button></div>
+    <div class="row" style="margin-top:6px"><button class="small" id="editSetup">Setup guide</button><button class="small" id="logout">Disconnect both</button></div>
   </section>
 
   <!-- Resume -->
@@ -118,7 +123,7 @@
 
   <!-- Playlists -->
   <section class="card hidden" id="playlistCard">
-    <h2>3. Choose playlists</h2>
+    <h2>Choose playlists</h2>
     <div class="row" style="margin-bottom:8px">
       <button class="small" id="selectAll">Select all</button>
       <button class="small" id="selectNone">Clear</button>
@@ -132,7 +137,7 @@
 
   <!-- Progress -->
   <section class="card hidden" id="progressCard">
-    <h2>4. Progress</h2>
+    <h2>Progress</h2>
     <p class="sub" id="progressNote" style="margin:0 0 6px">Keep this page open and the screen on. If it stops, reopen it and press Resume. Nothing is lost.</p>
     <div id="jobs"></div>
     <div class="row" style="margin-top:10px"><button class="small hidden" id="stopBtn">Pause</button><button class="small hidden" id="doneBtn">Back to playlists</button></div>
@@ -270,13 +275,16 @@ function saveToken(svc, j, prev = {}) {
   return tok;
 }
 
+let lastLoginError = null;
+function loginError(svc, msg) { lastLoginError = { svc: svc || null, msg }; const el = $("connectErr"); if (el) el.textContent = msg; }
+
 async function handleRedirect() {
   const q = new URLSearchParams(location.search);
   if (!q.has("code") && !q.has("error")) return;
   const pk = LS.get("pkce");
   history.replaceState(null, "", REDIRECT_URI);
-  if (q.has("error")) { $("connectErr").textContent = "Login was cancelled or refused: " + q.get("error"); return; }
-  if (!pk || pk.state !== q.get("state")) { $("connectErr").textContent = "Login reply didn't match. Please try connecting again."; return; }
+  if (q.has("error")) { loginError(pk?.svc, "Login was cancelled or refused (" + q.get("error") + ")."); return; }
+  if (!pk || pk.state !== q.get("state")) { loginError(pk?.svc, "The login reply didn't match. Please try connecting again."); return; }
   LS.del("pkce");
   const cfg = LS.get("cfg", {});
   const svc = pk.svc;
@@ -287,8 +295,9 @@ async function handleRedirect() {
       ...(svc === "td" ? { scope: TD_SCOPES } : {}),
     });
     saveToken(svc, j);
+    lastLoginError = null;
     toast((svc === "sp" ? "Spotify" : "Tidal") + " connected");
-  } catch (e) { $("connectErr").textContent = e.message; }
+  } catch (e) { loginError(svc, e.message); }
 }
 
 const refreshing = {};
@@ -804,15 +813,225 @@ async function runJob(j) {
   }
 }
 
+/* ============================== setup guide ============================== */
+const SP_DASH = "https://developer.spotify.com/dashboard";
+const TD_DASH = "https://developer.tidal.com/dashboard";
+const IS_HOSTED = location.protocol === "https:";
+
+function copyField(label, value, mono) {
+  return `<div class="field"><div class="lbl">${esc(label)}</div>
+    <div class="val${mono ? " mono" : ""}"><span>${esc(value)}</span><button class="small" data-copy="${esc(value)}">Copy</button></div></div>`;
+}
+function tickBox(key, html) {
+  const on = !!(LS.get("wiz.ticks", {})[key]);
+  return `<label class="tick${on ? " done" : ""}"><input type="checkbox" data-tick="${key}" ${on ? "checked" : ""}><span>${html}</span></label>`;
+}
+function ticked(keys) { const t = LS.get("wiz.ticks", {}); return keys.every((k) => t[k]); }
+function linkBtn(href, text) { return `<a class="bigbtn" href="${href}" target="_blank" rel="noopener">${esc(text)} ↗</a>`; }
+function jumpLink(stepId, text) { return `<button class="linkbtn" data-jump="${stepId}">${esc(text)}</button>`; }
+
+const WIZ = [
+  { id: "welcome", part: "Start", title: "Let's get you set up",
+    body: () => `
+      <p>This guide takes you through setup one small step at a time. It takes about 15 minutes, and you only do it once.</p>
+      <p>You'll need:</p>
+      <ul>
+        <li>a <b>Spotify Premium</b> account (Spotify requires it for this kind of app)</li>
+        <li>a <b>Tidal</b> account</li>
+      </ul>
+      <p class="note">A laptop is easier, but a phone works. You'll switch between this page and the Spotify and Tidal websites, and this page remembers where you got to.</p>`,
+    next: "Start" },
+
+  { id: "hosting", part: "Part 1 · Put it online", title: "Open this app from its web address",
+    skip: () => IS_HOSTED,
+    body: () => `
+      <p>You've opened the file directly on your device. Spotify and Tidal can only send you back to a web address, so the app has to be online first.</p>
+      <ol>
+        <li>Sign up free at <a href="https://github.com/signup" target="_blank" rel="noopener">github.com</a>.</li>
+        <li>Tap <b>+</b>, then <b>New repository</b>. Name it <code>playlist-mover</code>, choose <b>Public</b>, tick <b>Add a README file</b>, and create it.</li>
+        <li>Tap <b>Add file</b>, then <b>Upload files</b>. Choose this <code>index.html</code> file and tap <b>Commit changes</b>.</li>
+        <li>Go to <b>Settings</b>, then <b>Pages</b>. Set Branch to <b>main</b> and tap <b>Save</b>.</li>
+        <li>Wait two minutes and refresh. Open the address that appears (like <code>https://yourname.github.io/playlist-mover/</code>).</li>
+      </ol>
+      <p class="note">The guide carries on from there.</p>`,
+    canNext: () => false, next: "Waiting for web address" },
+
+  { id: "sp1", part: "Part 2 · Spotify key", title: "Open the Spotify developer site",
+    body: () => `
+      <p>Spotify needs you to register this app before it will share your playlists. It's free.</p>
+      ${linkBtn(SP_DASH, "Open developer.spotify.com")}
+      <p>Log in with your normal Spotify account. If it asks you to accept the developer terms or verify your email, do that.</p>
+      <p>When you can see the dashboard, come back to this tab and tap Next.</p>` },
+
+  { id: "sp2", part: "Part 2 · Spotify key", title: "Create the Spotify app",
+    body: () => `
+      <p>On the dashboard, tap <b>Create app</b>. Fill in the form using these. Tap Copy, then paste into each box.</p>
+      ${copyField("App name", "Playlist Mover")}
+      ${copyField("App description", "Moving my playlists to Tidal")}
+      ${copyField("Redirect URIs (paste, then tap Add)", REDIRECT_URI, true)}
+      <p>Leave Website blank. Under <b>Which API/SDKs</b>, tick <b>Web API</b> only. Tick the terms box and tap <b>Save</b>.</p>
+      ${tickBox("spRedirect", "After tapping <b>Add</b>, the address appeared in a list under the Redirect URIs box")}
+      ${tickBox("spSaved", "I tapped <b>Save</b> and I'm looking at the new app's page")}`,
+    canNext: () => ticked(["spRedirect", "spSaved"]) },
+
+  { id: "sp3", part: "Part 2 · Spotify key", title: "Copy the Spotify Client ID",
+    body: () => `
+      <p>On the app's page, tap <b>Settings</b>. Near the top is <b>Client ID</b>: 32 letters and numbers. Copy it and paste it here.</p>
+      <label for="wizSp">Spotify Client ID</label>
+      <input type="text" id="wizSp" autocomplete="off" spellcheck="false" value="${esc(LS.get("cfg", {}).spClientId || "")}" placeholder="e.g. 3f9a…">
+      <p class="note">Don't use the Client Secret. It's a separate box you have to tap to reveal. This app doesn't need it.</p>`,
+    onNext: () => {
+      const v = $("wizSp").value.replace(/\s+/g, "");
+      if (!/^[0-9a-f]{32}$/i.test(v)) { $("wizSp").classList.add("bad"); return "That doesn't look like a Spotify Client ID. It should be exactly 32 letters (a to f) and numbers."; }
+      const cfg = LS.get("cfg", {}); if (cfg.spClientId !== v) LS.del("tok.sp");
+      LS.set("cfg", { ...cfg, spClientId: v });
+    } },
+
+  { id: "td1", part: "Part 3 · Tidal key", title: "Open the Tidal developer site",
+    body: () => `
+      <p>Now the same for Tidal.</p>
+      ${linkBtn(TD_DASH, "Open developer.tidal.com")}
+      <p>Log in with your normal Tidal account and accept the developer terms if asked.</p>
+      <p>When you can see the dashboard, come back here and tap Next.</p>` },
+
+  { id: "td2", part: "Part 3 · Tidal key", title: "Create the Tidal app",
+    body: () => `
+      <p>Tap <b>Create new app</b> (the button name may differ slightly). Use this name:</p>
+      ${copyField("App name", "Playlist Mover")}
+      <p>Then open the app's <b>settings</b> and find <b>Redirect URIs</b>. Paste this in and save:</p>
+      ${copyField("Redirect URI", REDIRECT_URI, true)}
+      ${tickBox("tdRedirect", "The redirect address is saved in the Tidal app's settings")}`,
+    canNext: () => ticked(["tdRedirect"]) },
+
+  { id: "td3", part: "Part 3 · Tidal key", title: "Turn on four permissions",
+    body: () => `
+      <p>In the same settings, find <b>Scopes</b>. Turn on each of these, ticking them off here as you go:</p>
+      ${["playlists.read", "playlists.write", "search.read", "user.read"].map((sc) => tickBox("sc_" + sc, `<code>${sc}</code>`)).join("")}
+      <p>Then save the settings.</p>
+      <p class="note">If one of them isn't there or can't be turned on, the app won't be able to make your playlists. Stop here and ask whoever set this up for you.</p>`,
+    canNext: () => ticked(["sc_playlists.read", "sc_playlists.write", "sc_search.read", "sc_user.read"]) },
+
+  { id: "td4", part: "Part 3 · Tidal key", title: "Copy the Tidal Client ID",
+    body: () => `
+      <p>On the Tidal app's page, copy the <b>Client ID</b> and paste it here. Ignore the Client Secret.</p>
+      <label for="wizTd">Tidal Client ID</label>
+      <input type="text" id="wizTd" autocomplete="off" spellcheck="false" value="${esc(LS.get("cfg", {}).tdClientId || "")}">`,
+    onNext: () => {
+      const v = $("wizTd").value.replace(/\s+/g, "");
+      if (v.length < 8 || /[^A-Za-z0-9_\-]/.test(v)) { $("wizTd").classList.add("bad"); return "That doesn't look like a Tidal Client ID. Copy it again from the Tidal app's page."; }
+      const cfg = LS.get("cfg", {}); if (cfg.tdClientId !== v) LS.del("tok.td");
+      LS.set("cfg", { ...cfg, tdClientId: v });
+    } },
+
+  { id: "conn_sp", part: "Part 4 · Connect", title: "Connect your Spotify account",
+    body: () => {
+      const ok = !!LS.get("tok.sp");
+      const err = lastLoginError && lastLoginError.svc !== "td" ? lastLoginError.msg : "";
+      return ok ? `<div class="okbox">✓ Spotify is connected.</div><p>Tap Next.</p>` : `
+        <p>Tap the button. Spotify will ask whether Playlist Mover can see your playlists. Tap <b>Agree</b> and you'll come straight back here.</p>
+        <button class="bigbtn go" data-login="sp">Connect Spotify</button>
+        ${err ? `<p class="err">${esc(err)}</p>` : ""}
+        <details class="help"><summary>Spotify showed an error instead?</summary><ul>
+          <li><b>INVALID_CLIENT: Invalid redirect URI</b>: the address wasn't added. ${jumpLink("sp2", "Go back to that step")}.</li>
+          <li><b>INVALID_CLIENT: Invalid client</b>: the Client ID is wrong. ${jumpLink("sp3", "Paste it again")}.</li>
+          <li><b>User not registered in the Developer Dashboard</b>: you're logged in to Spotify with a different account from the one that made the app. Log in with the same account, or add this account's email under User Management in the Spotify app's settings.</li>
+        </ul></details>`;
+    },
+    canNext: () => !!LS.get("tok.sp") },
+
+  { id: "conn_td", part: "Part 4 · Connect", title: "Connect your Tidal account",
+    body: () => {
+      const ok = !!LS.get("tok.td");
+      const err = lastLoginError && lastLoginError.svc === "td" ? lastLoginError.msg : "";
+      return ok ? `<div class="okbox">✓ Tidal is connected.</div><p>Tap Next.</p>` : `
+        <p>Tap the button, log in to Tidal if asked, and allow access. You'll come straight back here.</p>
+        <button class="bigbtn go" data-login="td">Connect Tidal</button>
+        ${err ? `<p class="err">${esc(err)}</p>` : ""}
+        <details class="help"><summary>Tidal showed an error instead?</summary><ul>
+          <li>An error about the <b>redirect</b>: ${jumpLink("td2", "check the redirect address")}.</li>
+          <li>An error about <b>scope</b> or permissions: ${jumpLink("td3", "check the four permissions")}.</li>
+          <li>An error about the <b>client</b>: ${jumpLink("td4", "paste the Client ID again")}.</li>
+        </ul></details>`;
+    },
+    canNext: () => !!LS.get("tok.td") },
+
+  { id: "ready", part: "Done", title: "You're ready",
+    body: () => `
+      <div class="okbox">✓ Setup is finished. You won't need to do it again on this device.</div>
+      <p><b>Try a small playlist first</b> (20 to 50 songs), then check it in the Tidal app before moving the big ones.</p>
+      <p>While a transfer runs:</p>
+      <ul>
+        <li>keep this tab open and the screen on</li>
+        <li>plug your phone in for big playlists</li>
+        <li>if it stops, reopen this page and tap <b>Resume</b></li>
+      </ul>`,
+    next: "Show my playlists", finish: true },
+];
+
+function wizSteps() { return WIZ.filter((s) => !(s.skip && s.skip())); }
+function wizIndex() { const steps = wizSteps(); const i = steps.findIndex((s) => s.id === LS.get("wiz.step")); return i < 0 ? 0 : i; }
+function wizGo(id) { LS.set("wiz.step", id); renderWizard(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+
+function renderWizard() {
+  const steps = wizSteps();
+  const i = wizIndex();
+  const st = steps[i];
+  $("wizPart").textContent = st.part;
+  $("wizCount").textContent = `Step ${i + 1} of ${steps.length}`;
+  $("wizTrack").innerHTML = steps.map((_, k) => `<i class="${k <= i ? "on" : ""}"></i>`).join("");
+  $("wizTitle").textContent = st.title;
+  $("wizBody").innerHTML = st.body();
+  $("wizErr").textContent = "";
+  $("wizBack").style.visibility = i === 0 ? "hidden" : "visible";
+  const nb = $("wizNext");
+  nb.textContent = st.next || "Next";
+  const upd = () => { nb.disabled = st.canNext ? !st.canNext() : false; };
+  upd();
+  const body = $("wizBody");
+  body.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = () => copyText(b.dataset.copy)));
+  body.querySelectorAll("[data-tick]").forEach((cb) => (cb.onchange = () => {
+    const t = LS.get("wiz.ticks", {}); t[cb.dataset.tick] = cb.checked; LS.set("wiz.ticks", t);
+    cb.closest(".tick").classList.toggle("done", cb.checked); upd();
+  }));
+  body.querySelectorAll("[data-login]").forEach((b) => (b.onclick = () => { lastLoginError = null; beginLogin(b.dataset.login); }));
+  body.querySelectorAll("[data-jump]").forEach((b) => (b.onclick = () => wizGo(b.dataset.jump)));
+  body.querySelectorAll("input[type=text]").forEach((inp) => {
+    inp.oninput = () => inp.classList.remove("bad");
+    inp.onkeydown = (e) => { if (e.key === "Enter") nb.click(); };
+  });
+}
+
+function wizNext() {
+  const steps = wizSteps(); const st = steps[wizIndex()];
+  if (st.canNext && !st.canNext()) return;
+  if (st.onNext) { const err = st.onNext(); if (err) { $("wizErr").textContent = err; return; } }
+  if (st.finish) { LS.set("wizDone", true); LS.del("wiz.step"); show("wizCard", false); boot(); return; }
+  const nxt = steps[wizIndex() + 1];
+  if (nxt) wizGo(nxt.id);
+}
+function wizBack() { const steps = wizSteps(); const i = wizIndex(); if (i > 0) wizGo(steps[i - 1].id); }
+
+function openWizard(stepId) {
+  LS.set("wizDone", false);
+  if (stepId) LS.set("wiz.step", stepId);
+  show("connectCard", false); show("playlistCard", false); show("resumeCard", false); show("progressCard", false);
+  show("wizCard"); renderWizard();
+}
+
 /* ============================== screens ============================== */
 let playlists = [];
 const selected = new Set();
 
-function refreshConnectUI() {
+function setupComplete() {
   const cfg = LS.get("cfg", {});
-  const ready = !!(cfg.spClientId && cfg.tdClientId);
-  show("setupCard", !ready || $("setupCard").dataset.forced === "1");
-  show("connectCard", ready);
+  return !!(cfg.spClientId && cfg.tdClientId && LS.get("tok.sp") && LS.get("tok.td"));
+}
+
+function refreshConnectUI() {
+  const done = !!LS.get("wizDone");
+  show("wizCard", !done);
+  show("connectCard", done);
+  if (!done) renderWizard();
   const sp = LS.get("tok.sp"), td = LS.get("tok.td");
   $("spDot").classList.toggle("on", !!sp); $("tdDot").classList.toggle("on", !!td);
   const spu = LS.get("spUser");
@@ -820,7 +1039,7 @@ function refreshConnectUI() {
   $("tdStatus").textContent = td ? "Tidal: connected" : "Tidal: not connected";
   $("spConnect").textContent = sp ? "Reconnect" : "Connect";
   $("tdConnect").textContent = td ? "Reconnect" : "Connect";
-  return ready && sp && td;
+  return done && setupComplete();
 }
 
 function renderPlaylists() {
@@ -879,23 +1098,9 @@ async function start() {
 
 /* ============================== wiring ============================== */
 async function init() {
-  $("redirectUri").textContent = REDIRECT_URI;
-  const cfg = LS.get("cfg", {});
-  $("spClientId").value = cfg.spClientId || "";
-  $("tdClientId").value = cfg.tdClientId || "";
-
-  $("copyRedirect").onclick = () => copyText(REDIRECT_URI);
-  $("saveCfg").onclick = () => {
-    const sp = $("spClientId").value.trim(), td = $("tdClientId").value.trim();
-    if (!sp || !td) { $("cfgErr").textContent = "Both Client IDs are needed."; return; }
-    const old = LS.get("cfg", {});
-    if (old.spClientId !== sp) LS.del("tok.sp");
-    if (old.tdClientId !== td) LS.del("tok.td");
-    LS.set("cfg", { spClientId: sp, tdClientId: td });
-    $("cfgErr").textContent = ""; $("setupCard").dataset.forced = "0";
-    toast("Saved"); boot();
-  };
-  $("editSetup").onclick = () => { $("setupCard").dataset.forced = "1"; show("setupCard"); $("setupCard").scrollIntoView({ behavior: "smooth" }); };
+  $("wizNext").onclick = wizNext;
+  $("wizBack").onclick = wizBack;
+  $("editSetup").onclick = () => openWizard("sp1");
   $("logout").onclick = () => { LS.del("tok.sp"); LS.del("tok.td"); LS.del("spUser"); LS.del("tdCountry"); tdCountry = null; show("playlistCard", false); refreshConnectUI(); };
   $("spConnect").onclick = () => beginLogin("sp");
   $("tdConnect").onclick = () => beginLogin("td");
@@ -908,6 +1113,8 @@ async function init() {
   $("resumeBtn").onclick = () => { if (!refreshConnectUI()) { toast("Connect both services first"); return; } runJobs(); };
   $("discardBtn").onclick = async () => { await DB.clear(); show("resumeCard", false); toast("Discarded"); };
 
+  // People who finished setup before the guide existed go straight to their playlists.
+  if (LS.get("wizDone") == null && !LS.get("wiz.step") && setupComplete()) LS.set("wizDone", true);
   await handleRedirect();
   boot();
 }
