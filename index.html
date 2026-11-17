@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#111418">
+<title>Playlist Mover</title>
+<style>
+  :root {
+    --bg: #111418; --card: #1b2027; --line: #2b323c; --text: #e8ecf1; --muted: #9aa5b1;
+    --accent: #3ddc97; --accent-ink: #062b1b; --warn: #f5b942; --bad: #ff6b6b; --sp: #1ed760; --td: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 14px 80px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 12px 0; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text] { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: #0d1014; color: var(--text); font-size: 16px; }
+  button { font: inherit; border: 0; border-radius: 10px; padding: 11px 14px; cursor: pointer;
+    background: #2a313b; color: var(--text); }
+  button.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button.small { padding: 6px 10px; font-size: 14px; }
+  button:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; word-break: break-all;
+    background: #0d1014; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #2a313b; color: var(--muted); }
+  .pill.ok { background: #143d2b; color: var(--accent); }
+  .pill.warn { background: #3d3214; color: var(--warn); }
+  .pill.bad { background: #3d1717; color: var(--bad); }
+  .svc { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); flex: none; }
+  .dot.on { background: var(--accent); }
+  .list { max-height: 55vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .pl { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .pl:last-child { border-bottom: 0; }
+  .pl input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
+  .pl .name { font-weight: 500; }
+  .pl .meta { font-size: 13px; color: var(--muted); }
+  .pl.disabled { opacity: .5; }
+  .bar { height: 8px; background: #0d1014; border-radius: 99px; overflow: hidden; margin: 6px 0 2px; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .job { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .job:last-child { border-bottom: 0; }
+  .job .status { font-size: 13px; color: var(--muted); }
+  details summary { cursor: pointer; color: var(--accent); }
+  details ol { padding-left: 20px; margin: 8px 0; }
+  details li { margin: 6px 0; }
+  .missing { font-size: 14px; max-height: 260px; overflow: auto; margin: 8px 0; padding-left: 40px; }
+  .missing li { margin: 3px 0; }
+  .missing .why { color: var(--muted); font-size: 12px; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #2a313b; color: var(--text);
+    padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; max-width: 90vw; }
+  .toast.show { opacity: 1; }
+  .err { color: var(--bad); font-size: 14px; }
+  .hidden { display: none !important; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Playlist Mover</h1>
+  <div class="sub">Spotify to Tidal. Runs in your browser. Nothing is sent anywhere except Spotify and Tidal.</div>
+
+  <!-- Setup -->
+  <section class="card" id="setupCard">
+    <h2>1. Setup</h2>
+    <p>Paste this exact address into both developer dashboards as the redirect URI:</p>
+    <div class="row"><div class="mono grow" id="redirectUri"></div><button class="small" id="copyRedirect">Copy</button></div>
+    <label for="spClientId">Spotify Client ID</label>
+    <input type="text" id="spClientId" autocomplete="off" spellcheck="false" placeholder="32 characters from developer.spotify.com">
+    <label for="tdClientId">Tidal Client ID</label>
+    <input type="text" id="tdClientId" autocomplete="off" spellcheck="false" placeholder="From developer.tidal.com">
+    <div class="row" style="margin-top:12px"><button class="primary" id="saveCfg">Save</button><span class="err" id="cfgErr"></span></div>
+    <details style="margin-top:12px">
+      <summary>How to get the two Client IDs</summary>
+      <p><b>Spotify</b> (needs Spotify Premium on your account)</p>
+      <ol>
+        <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> and log in.</li>
+        <li>Create app. Any name. Tick <b>Web API</b>.</li>
+        <li>Under Redirect URIs, paste the address above and add it.</li>
+        <li>Save, open the app's Settings, copy the Client ID into the box above.</li>
+        <li>Under User Management, add the email of anyone else who will use it (up to 5 people). You don't need to add yourself.</li>
+      </ol>
+      <p><b>Tidal</b></p>
+      <ol>
+        <li>Go to <a href="https://developer.tidal.com/dashboard" target="_blank" rel="noopener">developer.tidal.com/dashboard</a> and log in with your Tidal account.</li>
+        <li>Create an app. Any name.</li>
+        <li>In the app's settings, add the redirect URI above.</li>
+        <li>Turn on the scopes <b>playlists.read</b>, <b>playlists.write</b>, <b>search.read</b> and <b>user.read</b>.</li>
+        <li>Copy the Client ID into the box above. You don't need the Client Secret.</li>
+      </ol>
+    </details>
+  </section>
+
+  <!-- Connect -->
+  <section class="card hidden" id="connectCard">
+    <h2>2. Connect</h2>
+    <div class="svc"><span class="dot" id="spDot"></span><span class="grow" id="spStatus">Spotify: not connected</span><button class="small" id="spConnect">Connect</button></div>
+    <div class="svc"><span class="dot" id="tdDot"></span><span class="grow" id="tdStatus">Tidal: not connected</span><button class="small" id="tdConnect">Connect</button></div>
+    <div class="err" id="connectErr"></div>
+    <div class="row" style="margin-top:6px"><button class="small" id="editSetup">Edit setup</button><button class="small" id="logout">Disconnect both</button></div>
+  </section>
+
+  <!-- Resume -->
+  <section class="card hidden" id="resumeCard">
+    <h2>Unfinished transfer</h2>
+    <p id="resumeText"></p>
+    <div class="row"><button class="primary" id="resumeBtn">Resume</button><button id="discardBtn">Discard</button></div>
+  </section>
+
+  <!-- Playlists -->
+  <section class="card hidden" id="playlistCard">
+    <h2>3. Choose playlists</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="small" id="selectAll">Select all</button>
+      <button class="small" id="selectNone">Clear</button>
+      <button class="small" id="reloadPl">Reload</button>
+      <span class="grow"></span><span class="pill" id="selCount">0 selected</span>
+    </div>
+    <div class="list" id="plList"><div class="pl"><span class="meta">Loading…</span></div></div>
+    <label><input type="checkbox" id="optPublic" style="width:auto;vertical-align:middle"> Make the new Tidal playlists public (otherwise unlisted)</label>
+    <div class="row" style="margin-top:12px"><button class="primary grow" id="startBtn" disabled>Move to Tidal</button></div>
+  </section>
+
+  <!-- Progress -->
+  <section class="card hidden" id="progressCard">
+    <h2>4. Progress</h2>
+    <p class="sub" id="progressNote" style="margin:0 0 6px">Keep this page open and the screen on. If it stops, reopen it and press Resume. Nothing is lost.</p>
+    <div id="jobs"></div>
+    <div class="row" style="margin-top:10px"><button class="small hidden" id="stopBtn">Pause</button><button class="small hidden" id="doneBtn">Back to playlists</button></div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================== config ============================== */
+const SP_AUTH = "https://accounts.spotify.com/authorize";
+const SP_TOKEN = "https://accounts.spotify.com/api/token";
+const SP_API = "https://api.spotify.com/v1";
+const SP_SCOPES = "playlist-read-private playlist-read-collaborative user-library-read";
+const TD_AUTH = "https://login.tidal.com/authorize";
+const TD_TOKEN = "https://auth.tidal.com/v1/oauth2/token";
+const TD_API = "https://openapi.tidal.com/v2";
+const TD_SCOPES = "playlists.read playlists.write search.read user.read";
+const JSONAPI = "application/vnd.api+json";
+const ISRC_BATCH = 20;      // Tidal max per /tracks?filter[isrc]
+const ADD_BATCH = 50;       // Tidal max items per add request
+const SEARCH_CONCURRENCY = 3;
+const LIKED_ID = "__liked__";
+const REDIRECT_URI = location.origin + location.pathname;
+
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* ============================== storage ============================== */
+const LS = {
+  get(k, d = null) { try { const v = localStorage.getItem("pm." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("pm." + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem("pm." + k); } catch {} },
+};
+
+// Small IndexedDB key-value store for transfer jobs (they can be large).
+const DB = (() => {
+  let dbp = null;
+  const mem = new Map(); // fallback if IndexedDB is unavailable
+  function open() {
+    if (dbp) return dbp;
+    dbp = new Promise((res) => {
+      try {
+        const rq = indexedDB.open("playlist-mover", 1);
+        rq.onupgradeneeded = () => rq.result.createObjectStore("jobs");
+        rq.onsuccess = () => res(rq.result);
+        rq.onerror = () => res(null);
+      } catch { res(null); }
+    });
+    return dbp;
+  }
+  async function tx(mode, fn) {
+    const db = await open();
+    if (!db) return fn(null);
+    return new Promise((res, rej) => {
+      const t = db.transaction("jobs", mode);
+      const st = t.objectStore("jobs");
+      let out;
+      Promise.resolve(fn(st)).then((v) => { out = v; });
+      t.oncomplete = () => res(out);
+      t.onerror = () => rej(t.error);
+    });
+  }
+  const wrap = (rq) => new Promise((res, rej) => { rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
+  return {
+    async put(job) { const db = await open(); if (!db) { mem.set(job.id, structuredClone(job)); return; }
+      await tx("readwrite", (st) => { st.put(job, job.id); }); },
+    async all() { const db = await open(); if (!db) return [...mem.values()];
+      const db2 = db; return wrap(db2.transaction("jobs").objectStore("jobs").getAll()); },
+    async clear() { const db = await open(); if (!db) { mem.clear(); return; }
+      await tx("readwrite", (st) => { st.clear(); }); },
+  };
+})();
+
+/* ============================== ui helpers ============================== */
+let toastTimer;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+}
+function show(id, on = true) { $(id).classList.toggle("hidden", !on); }
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast("Copied"); }
+  catch {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast("Copied"); } catch { toast("Couldn't copy"); }
+    ta.remove();
+  }
+}
+
+/* ============================== PKCE ============================== */
+function b64url(bytes) {
+  let s = ""; for (const b of new Uint8Array(bytes)) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function randomString(n = 64) { const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0, n); }
+async function challenge(verifier) { return b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))); }
+
+async function beginLogin(svc) {
+  const cfg = LS.get("cfg", {});
+  const clientId = svc === "sp" ? cfg.spClientId : cfg.tdClientId;
+  if (!clientId) { toast("Add the Client ID in Setup first"); return; }
+  const verifier = randomString(96);
+  const state = svc + "." + randomString(16);
+  LS.set("pkce", { svc, verifier, state });
+  const q = new URLSearchParams({
+    response_type: "code", client_id: clientId, redirect_uri: REDIRECT_URI, state,
+    code_challenge_method: "S256", code_challenge: await challenge(verifier),
+    scope: svc === "sp" ? SP_SCOPES : TD_SCOPES,
+  });
+  location.assign((svc === "sp" ? SP_AUTH : TD_AUTH) + "?" + q.toString());
+}
+
+async function tokenRequest(svc, body) {
+  const res = await fetch(svc === "sp" ? SP_TOKEN : TD_TOKEN, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body).toString(),
+  });
+  const text = await res.text();
+  let json = {}; try { json = JSON.parse(text); } catch {}
+  if (!res.ok) throw new Error((svc === "sp" ? "Spotify" : "Tidal") + " login failed: " + (json.error_description || json.error || res.status));
+  return json;
+}
+
+function saveToken(svc, j, prev = {}) {
+  const tok = {
+    access: j.access_token,
+    refresh: j.refresh_token || prev.refresh || null,
+    exp: Date.now() + ((j.expires_in || 3600) - 60) * 1000,
+    userId: j.user_id != null ? String(j.user_id) : prev.userId || null,
+  };
+  LS.set("tok." + svc, tok);
+  return tok;
+}
+
+async function handleRedirect() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has("code") && !q.has("error")) return;
+  const pk = LS.get("pkce");
+  history.replaceState(null, "", REDIRECT_URI);
+  if (q.has("error")) { $("connectErr").textContent = "Login was cancelled or refused: " + q.get("error"); return; }
+  if (!pk || pk.state !== q.get("state")) { $("connectErr").textContent = "Login reply didn't match. Please try connecting again."; return; }
+  LS.del("pkce");
+  const cfg = LS.get("cfg", {});
+  const svc = pk.svc;
+  try {
+    const j = await tokenRequest(svc, {
+      grant_type: "authorization_code", code: q.get("code"), redirect_uri: REDIRECT_URI,
+      client_id: svc === "sp" ? cfg.spClientId : cfg.tdClientId, code_verifier: pk.verifier,
+      ...(svc === "td" ? { scope: TD_SCOPES } : {}),
+    });
+    saveToken(svc, j);
+    toast((svc === "sp" ? "Spotify" : "Tidal") + " connected");
+  } catch (e) { $("connectErr").textContent = e.message; }
+}
+
+const refreshing = {};
+async function getToken(svc) {
+  const tok = LS.get("tok." + svc);
+  if (!tok) throw new AuthError(svc);
+  if (Date.now() < tok.exp) return tok.access;
+  return refreshToken(svc);
+}
+async function refreshToken(svc) {
+  if (refreshing[svc]) return refreshing[svc];
+  refreshing[svc] = (async () => {
+    const tok = LS.get("tok." + svc);
+    if (!tok || !tok.refresh) throw new AuthError(svc);
+    const cfg = LS.get("cfg", {});
+    try {
+      const j = await tokenRequest(svc, {
+        grant_type: "refresh_token", refresh_token: tok.refresh,
+        client_id: svc === "sp" ? cfg.spClientId : cfg.tdClientId,
+        ...(svc === "td" ? { scope: TD_SCOPES } : {}),
+      });
+      return saveToken(svc, j, tok).access;
+    } catch (e) { throw new AuthError(svc); }
+  })();
+  try { return await refreshing[svc]; } finally { refreshing[svc] = null; }
+}
+class AuthError extends Error {
+  constructor(svc) { super((svc === "sp" ? "Spotify" : "Tidal") + " needs reconnecting"); this.svc = svc; }
+}
+
+/* ============================== HTTP with retry ============================== */
+class ApiError extends Error { constructor(msg, status, body) { super(msg); this.status = status; this.body = body; } }
+
+async function api(svc, url, opts = {}, tries = 0) {
+  let token = await getToken(svc);
+  const headers = Object.assign(
+    { Authorization: "Bearer " + token },
+    svc === "td" ? { Accept: JSONAPI } : {},
+    opts.body ? { "Content-Type": svc === "td" ? JSONAPI : "application/json" } : {},
+    opts.headers || {}
+  );
+  let res;
+  try { res = await fetch(url, { method: opts.method || "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined }); }
+  catch (e) {
+    if (tries < 6) { await sleep(Math.min(30000, 1500 * 2 ** tries)); return api(svc, url, opts, tries + 1); }
+    throw new ApiError("Network error. Check your connection.", 0);
+  }
+  if (res.status === 401 && tries < 2) { await refreshToken(svc); return api(svc, url, opts, tries + 1); }
+  if (res.status === 401) throw new AuthError(svc);
+  if (res.status === 429 || res.status >= 500) {
+    if (tries < 8) {
+      const ra = parseFloat(res.headers.get("Retry-After"));
+      const wait = !isNaN(ra) ? ra * 1000 + 250 : Math.min(60000, 1000 * 2 ** tries);
+      setStatusHint(res.status === 429 ? `Rate limited by ${svc === "sp" ? "Spotify" : "Tidal"}, waiting ${Math.round(wait / 1000)}s…` : "Server busy, retrying…");
+      await sleep(wait);
+      setStatusHint("");
+      return api(svc, url, opts, tries + 1);
+    }
+  }
+  const text = await res.text();
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    const detail = json?.error?.message || json?.errors?.[0]?.detail || json?.errors?.[0]?.title || text.slice(0, 200);
+    throw new ApiError(`${svc === "sp" ? "Spotify" : "Tidal"} error ${res.status}: ${detail}`, res.status, json);
+  }
+  return json;
+}
+let hintEl = null;
+function setStatusHint(t) { if (hintEl) hintEl.textContent = t; }
+
+/* ============================== Spotify ============================== */
+async function spMe() { return api("sp", SP_API + "/me"); }
+
+async function spPlaylists() {
+  const me = await spMe();
+  LS.set("spUser", { id: me.id, name: me.display_name || me.id });
+  const out = [];
+  let url = SP_API + "/me/playlists?limit=50";
+  while (url) {
+    const j = await api("sp", url);
+    for (const p of j.items || []) {
+      if (!p) continue;
+      const total = p.items?.total ?? p.tracks?.total ?? 0;
+      const own = p.owner?.id === me.id || p.collaborative;
+      out.push({ id: p.id, name: p.name || "(untitled)", total, own, owner: p.owner?.display_name || p.owner?.id || "" });
+    }
+    url = j.next;
+  }
+  let liked = null;
+  try { const j = await api("sp", SP_API + "/me/tracks?limit=1"); liked = { id: LIKED_ID, name: "Liked Songs", total: j.total || 0, own: true, owner: "" }; }
+  catch (e) { if (e instanceof AuthError) throw e; }
+  return liked ? [liked, ...out] : out;
+}
+
+function simplifyTrack(t) {
+  if (!t) return null;
+  if (t.type && t.type !== "track") return { n: t.name || "(episode)", a: "", isrc: null, ms: 0, skip: "Podcast episode" };
+  return {
+    n: t.name || "",
+    a: (t.artists || []).map((x) => x.name).filter(Boolean).join(", "),
+    al: t.album?.name || "",
+    isrc: (t.external_ids?.isrc || "").toUpperCase().replace(/[^A-Z0-9]/g, "") || null,
+    ms: t.duration_ms || 0,
+    skip: t.is_local ? "Local file" : null,
+  };
+}
+
+async function spTracks(playlistId, onProgress) {
+  const tracks = [];
+  let url = playlistId === LIKED_ID ? SP_API + "/me/tracks?limit=50" : SP_API + `/playlists/${encodeURIComponent(playlistId)}/items?limit=50&additional_types=track`;
+  let total = 0;
+  while (url) {
+    const j = await api("sp", url);
+    total = j.total || total;
+    for (const it of j.items || []) {
+      const s = simplifyTrack(it?.item || it?.track);
+      if (s) tracks.push(s);
+    }
+    onProgress(tracks.length, total);
+    url = j.next;
+  }
+  return tracks;
+}
+
+/* ============================== Tidal ============================== */
+let tdCountry = null;
+async function tdMe() {
+  const j = await api("td", TD_API + "/users/me");
+  const c = j?.data?.attributes?.country;
+  return { id: j?.data?.id, country: c, name: j?.data?.attributes?.username || j?.data?.attributes?.firstName || "" };
+}
+async function ensureCountry() {
+  if (tdCountry) return tdCountry;
+  const saved = LS.get("tdCountry");
+  if (saved) return (tdCountry = saved);
+  try { const me = await tdMe(); tdCountry = me.country || "GB"; } catch (e) { if (e instanceof AuthError) throw e; tdCountry = "GB"; }
+  LS.set("tdCountry", tdCountry);
+  return tdCountry;
+}
+
+function isoDurMs(d) {
+  const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/.exec(d || "");
+  if (!m) return 0;
+  return (((+m[1] || 0) * 24 + (+m[2] || 0)) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0)) * 1000;
+}
+
+let isrcMode = "comma"; // Tidal docs say comma-separated; fall back to repeated keys if refused
+async function tdTracksByIsrc(isrcs) {
+  const cc = await ensureCountry();
+  const build = (mode) => {
+    const p = new URLSearchParams({ countryCode: cc });
+    if (mode === "comma") p.set("filter[isrc]", isrcs.join(","));
+    else isrcs.forEach((i) => p.append("filter[isrc]", i));
+    return TD_API + "/tracks?" + p.toString();
+  };
+  let j;
+  try { j = await api("td", build(isrcMode)); }
+  catch (e) {
+    if (e instanceof ApiError && e.status === 400 && isrcMode === "comma" && isrcs.length > 1) { isrcMode = "repeat"; j = await api("td", build(isrcMode)); }
+    else throw e;
+  }
+  const map = new Map();
+  for (const t of j?.data || []) {
+    const isrc = (t.attributes?.isrc || "").toUpperCase();
+    if (!isrc) continue;
+    if (!map.has(isrc)) map.set(isrc, []);
+    map.get(isrc).push({ id: t.id, ms: isoDurMs(t.attributes?.duration), title: t.attributes?.title || "" });
+  }
+  return map;
+}
+
+let searchInclude = "tracks.artists";
+async function tdSearch(query) {
+  const cc = await ensureCountry();
+  const url = (inc) => TD_API + "/searchResults?" + new URLSearchParams({ "filter[query]": query.slice(0, 256), countryCode: cc, include: inc }).toString();
+  let j;
+  try { j = await api("td", url(searchInclude)); }
+  catch (e) {
+    if (e instanceof ApiError && e.status === 400 && searchInclude !== "tracks") { searchInclude = "tracks"; j = await api("td", url(searchInclude)); }
+    else if (e instanceof ApiError && e.status === 404) return [];
+    else throw e;
+  }
+  const inc = j?.included || [];
+  const artists = new Map(inc.filter((x) => x.type === "artists").map((x) => [x.id, x.attributes?.name || ""]));
+  const order = (j?.data?.relationships?.tracks?.data || []).map((x) => x.id);
+  const tracks = new Map(inc.filter((x) => x.type === "tracks").map((x) => [x.id, x]));
+  const ids = order.length ? order : [...tracks.keys()];
+  return ids.map((id) => tracks.get(id)).filter(Boolean).map((t) => ({
+    id: t.id,
+    title: t.attributes?.title || "",
+    version: t.attributes?.version || "",
+    ms: isoDurMs(t.attributes?.duration),
+    artists: (t.relationships?.artists?.data || []).map((a) => artists.get(a.id)).filter(Boolean),
+  }));
+}
+
+async function tdCreatePlaylist(name, isPublic, idemKey) {
+  const cc = await ensureCountry();
+  const j = await api("td", TD_API + "/playlists?countryCode=" + cc, {
+    method: "POST",
+    headers: { "Idempotency-Key": idemKey },
+    body: { data: { type: "playlists", attributes: { name: name.slice(0, 250), description: "Moved from Spotify", accessType: isPublic ? "PUBLIC" : "UNLISTED" } } },
+  });
+  const id = j?.data?.id;
+  if (!id) throw new ApiError("Tidal didn't return a playlist id", 0, j);
+  return id;
+}
+
+async function tdAddItems(playlistId, ids, idemKey) {
+  return api("td", TD_API + `/playlists/${encodeURIComponent(playlistId)}/relationships/items`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idemKey },
+    body: { data: ids.map((id) => ({ type: "tracks", id })), meta: { onDuplicates: "ADD" } },
+  });
+}
+
+/* ============================== matching ============================== */
+function norm(s) {
+  return (s || "")
+    .normalize("NFKD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+function cleanTitle(s) {
+  return (s || "")
+    .replace(/\s*[\(\[][^\)\]]*(feat|ft\.|with |remaster|version|edit|mix|live|mono|stereo|deluxe|bonus|explicit|clean)[^\)\]]*[\)\]]/gi, "")
+    .replace(/\s+-\s+.*(remaster|version|edit|mix|live|mono|stereo|single|radio|from ).*$/i, "")
+    .trim();
+}
+function titleScore(a, b) {
+  const x = norm(cleanTitle(a)), y = norm(cleanTitle(b));
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  if (x.startsWith(y) || y.startsWith(x)) return 0.7; // e.g. "Song" vs "Song 2": not enough on its own
+  const xs = new Set(x.split(" ")), ys = new Set(y.split(" "));
+  let common = 0; for (const w of xs) if (ys.has(w)) common++;
+  return common / Math.max(xs.size, ys.size);
+}
+function artistScore(spArtists, tdArtists) {
+  if (!tdArtists || !tdArtists.length) return null; // unknown
+  const sp = spArtists.split(",").map(norm).filter(Boolean);
+  const td = tdArtists.map(norm);
+  for (const a of sp) for (const b of td) if (a === b || a.includes(b) || b.includes(a)) return 1;
+  return 0;
+}
+function pickSearchMatch(t, cands) {
+  let best = null, bestScore = 0;
+  for (const c of cands) {
+    const ts = titleScore(t.n, c.title + (c.version ? ` (${c.version})` : ""));
+    const ts2 = titleScore(t.n, c.title);
+    const tscore = Math.max(ts, ts2);
+    if (tscore < 0.75) continue;
+    const ar = artistScore(t.a, c.artists);
+    if (ar === 0) continue;
+    const diff = t.ms && c.ms ? Math.abs(t.ms - c.ms) : 0;
+    if (diff > (ar === 1 ? 10000 : 5000)) continue;
+    const score = tscore * 2 + (ar === 1 ? 1 : 0) + (1 - Math.min(diff, 10000) / 10000);
+    if (score > bestScore) { bestScore = score; best = c; }
+  }
+  return best;
+}
+function pickIsrcMatch(t, cands) {
+  if (!cands || !cands.length) return null;
+  if (!t.ms) return cands[0];
+  return cands.slice().sort((a, b) => Math.abs(a.ms - t.ms) - Math.abs(b.ms - t.ms))[0];
+}
+
+/* ============================== transfer engine ============================== */
+let running = false, stopRequested = false, wakeLock = null;
+
+async function keepAwake(on) {
+  try {
+    if (on && "wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener?.("release", () => { wakeLock = null; }); }
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (running && document.visibilityState === "visible") keepAwake(true); });
+
+function newJob(pl, idx) {
+  return {
+    id: pl.id, order: idx, name: pl.name, total: pl.total, isPublic: !!$("optPublic").checked,
+    phase: "queued",           // queued -> reading -> matching -> creating -> adding -> done | error
+    tracks: null,              // simplified Spotify tracks
+    matches: null,             // array: tidal id | null, same order as tracks
+    searched: 0,               // how many unmatched tracks have been searched
+    tidalId: null, batchesDone: 0,
+    error: null, createdAt: Date.now(),
+  };
+}
+
+function jobStatusText(j) {
+  switch (j.phase) {
+    case "queued": return "Waiting";
+    case "reading": return j.readCount ? `Reading from Spotify… ${j.readCount} songs` : "Reading from Spotify…";
+    case "matching": return "Finding songs on Tidal…";
+    case "creating": return "Creating Tidal playlist…";
+    case "adding": return "Adding songs to Tidal…";
+    case "done": return "Done";
+    case "error": return "Stopped: " + (j.error || "error");
+    default: return j.phase;
+  }
+}
+
+function jobStats(j) {
+  if (!j.tracks) return { total: j.total, found: 0, missing: 0 };
+  const total = j.tracks.length;
+  const found = j.matches ? j.matches.filter(Boolean).length : 0;
+  return { total, found, missing: j.matches ? total - found : 0 };
+}
+
+function missingList(j) {
+  if (!j.tracks || !j.matches) return [];
+  return j.tracks.map((t, i) => ({ t, i })).filter(({ i }) => !j.matches[i]).map(({ t }) => t);
+}
+
+function renderJobs(jobs) {
+  const box = $("jobs");
+  box.innerHTML = "";
+  for (const j of jobs) {
+    const el = document.createElement("div");
+    el.className = "job"; el.dataset.id = j.id;
+    el.innerHTML = `
+      <div class="row"><span class="name grow">${esc(j.name)}</span><span class="pill" data-k="pill"></span></div>
+      <div class="bar"><i data-k="bar"></i></div>
+      <div class="status" data-k="status"></div>
+      <div data-k="extra"></div>`;
+    box.appendChild(el);
+    updateJobEl(j);
+  }
+}
+
+function updateJobEl(j, frac) {
+  const el = document.querySelector(`.job[data-id="${CSS.escape(j.id)}"]`);
+  if (!el) return;
+  const st = jobStats(j);
+  const pill = el.querySelector('[data-k="pill"]');
+  const bar = el.querySelector('[data-k="bar"]');
+  const status = el.querySelector('[data-k="status"]');
+  const extra = el.querySelector('[data-k="extra"]');
+  let f = frac;
+  if (f == null) f = j.phase === "done" ? 1 : j.phase === "queued" ? 0 : null;
+  if (f != null) bar.style.width = Math.round(f * 100) + "%";
+  status.textContent = jobStatusText(j);
+  if (j.phase === "done") {
+    pill.className = "pill " + (st.missing ? "warn" : "ok");
+    pill.textContent = `${st.found}/${st.total} moved`;
+    const miss = missingList(j);
+    if (miss.length && !extra.dataset.built) {
+      extra.dataset.built = "1";
+      extra.innerHTML = `
+        <details><summary>${miss.length} not found on Tidal</summary>
+          <ol class="missing">${miss.map((t) => `<li>${esc(t.n)} <span class="why">${esc(t.a)}${t.skip ? " · " + esc(t.skip) : ""}</span></li>`).join("")}</ol>
+          <div class="row"><button class="small" data-act="copy">Copy list</button><button class="small" data-act="csv">Download CSV</button></div>
+        </details>`;
+      extra.querySelector('[data-act="copy"]').onclick = () => copyText(miss.map((t) => `${t.n} - ${t.a}`).join("\n"));
+      extra.querySelector('[data-act="csv"]').onclick = () => downloadCsv(j.name, miss);
+    }
+  } else if (j.phase === "error") {
+    pill.className = "pill bad"; pill.textContent = "Stopped";
+  } else {
+    pill.className = "pill"; pill.textContent = st.found ? `${st.found} found` : `${j.total} songs`;
+  }
+}
+
+function downloadCsv(name, rows) {
+  const q = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const csv = ["Title,Artist,Album,ISRC,Reason", ...rows.map((t) => [t.n, t.a, t.al, t.isrc, t.skip || "Not on Tidal"].map(q).join(","))].join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `missing - ${name.replace(/[\\/:*?"<>|]+/g, "_")}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+async function runJobs() {
+  if (running) return;
+  running = true; stopRequested = false;
+  show("progressCard"); show("playlistCard", false); show("resumeCard", false);
+  show("stopBtn"); show("doneBtn", false);
+  await keepAwake(true);
+  let jobs = (await DB.all()).sort((a, b) => a.order - b.order);
+  renderJobs(jobs);
+  try {
+    for (const j of jobs) {
+      if (stopRequested) break;
+      if (j.phase === "done") continue;
+      if (j.phase === "error") {
+        // Work out where it got to and carry on from there.
+        j.phase = !Array.isArray(j.tracks) || !j.resumeAt || j.resumeAt === "reading" ? "queued" : j.resumeAt;
+        j.error = null;
+      }
+      hintEl = document.querySelector(`.job[data-id="${CSS.escape(j.id)}"] [data-k="status"]`);
+      try { await runJob(j); }
+      catch (e) {
+        if (e.message === "STOP") break;
+        j.resumeAt = j.phase; j.phase = "error"; j.error = e.message; await DB.put(j); updateJobEl(j);
+        if (e instanceof AuthError) throw e;
+      }
+    }
+  } catch (e) {
+    if (e instanceof AuthError) {
+      toast(e.message + ". Connect again, then press Resume.");
+      LS.del("tok." + e.svc); refreshConnectUI();
+    }
+  } finally {
+    running = false; hintEl = null;
+    await keepAwake(false);
+    show("stopBtn", false); show("doneBtn");
+    jobs = (await DB.all()).sort((a, b) => a.order - b.order);
+    const unfinished = jobs.filter((j) => j.phase !== "done");
+    if (!unfinished.length && jobs.length) {
+      const moved = jobs.reduce((s, j) => s + jobStats(j).found, 0);
+      const all = jobs.reduce((s, j) => s + jobStats(j).total, 0);
+      $("progressNote").textContent = `Finished. ${moved} of ${all} songs moved across ${jobs.length} playlist${jobs.length > 1 ? "s" : ""}.`;
+    } else if (unfinished.length) {
+      $("progressNote").textContent = "Paused. Press Resume to carry on from where it stopped.";
+      showResume(jobs);
+    }
+  }
+}
+
+function checkStop() { if (stopRequested) throw new Error("STOP"); }
+
+async function runJob(j) {
+  // 1. Read tracks from Spotify
+  if (!j.tracks || j.phase === "queued" || j.phase === "reading") {
+    j.phase = "reading"; j.tracks = null; j.readCount = 0; updateJobEl(j, 0);
+    const tracks = await spTracks(j.id, (n, total) => {
+      j.readCount = n; updateJobEl(j, total ? (n / total) * 0.2 : 0);
+    });
+    checkStop();
+    j.tracks = tracks; j.total = tracks.length; j.matches = null; j.tried = [];
+    j.phase = "matching"; await DB.put(j);
+  }
+
+  // 2. Match on Tidal: ISRC first in batches of 20, then search the rest
+  if (j.phase === "matching") {
+    const n = j.tracks.length;
+    if (!j.matches) {
+      const m = new Array(n).fill(null);
+      const byIsrc = new Map();
+      j.tracks.forEach((t, i) => { if (!t.skip && t.isrc) { if (!byIsrc.has(t.isrc)) byIsrc.set(t.isrc, []); byIsrc.get(t.isrc).push(i); } });
+      const isrcs = [...byIsrc.keys()];
+      for (let k = 0; k < isrcs.length; k += ISRC_BATCH) {
+        checkStop();
+        const chunk = isrcs.slice(k, k + ISRC_BATCH);
+        const found = await tdTracksByIsrc(chunk);
+        for (const isrc of chunk) {
+          const idxs = byIsrc.get(isrc);
+          const pick = pickIsrcMatch(j.tracks[idxs[0]], found.get(isrc));
+          if (pick) for (const i of idxs) m[i] = pick.id;
+        }
+        updateJobEl(j, 0.2 + (Math.min(k + ISRC_BATCH, isrcs.length) / Math.max(1, isrcs.length)) * 0.3);
+      }
+      j.matches = m; j.tried = []; await DB.put(j);
+    }
+    // Search fallback for anything not matched by ISRC
+    const tried = new Set(j.tried || []);
+    const todo = j.tracks.map((t, i) => i).filter((i) => !j.matches[i] && !j.tracks[i].skip && !tried.has(i));
+    let pos = 0;
+    let sinceSave = 0;
+    const worker = async () => {
+      while (true) {
+        checkStop();
+        const p = pos++;
+        if (p >= todo.length) return;
+        const i = todo[p];
+        const t = j.tracks[i];
+        const firstArtist = (t.a || "").split(",")[0].trim();
+        const q = `${cleanTitle(t.n)} ${firstArtist}`.trim();
+        try {
+          let cands = q ? await tdSearch(q) : [];
+          let pick = pickSearchMatch(t, cands);
+          if (!pick && cleanTitle(t.n) !== t.n) { cands = await tdSearch(`${t.n} ${firstArtist}`); pick = pickSearchMatch(t, cands); }
+          if (pick) j.matches[i] = pick.id;
+        } catch (e) {
+          if (e instanceof AuthError || e.message === "STOP") throw e;
+          // A single failed search just leaves that song unmatched.
+        }
+        tried.add(i); j.tried = [...tried];
+        updateJobEl(j, 0.5 + (Math.min(pos, todo.length) / Math.max(1, todo.length)) * 0.3);
+        if (++sinceSave >= 20) { sinceSave = 0; await DB.put(j); }
+      }
+    };
+    await Promise.all(Array.from({ length: SEARCH_CONCURRENCY }, worker));
+    j.phase = "creating"; await DB.put(j);
+  }
+
+  // 3. Create the Tidal playlist
+  if (j.phase === "creating") {
+    checkStop();
+    updateJobEl(j, 0.8);
+    if (!j.tidalId) j.tidalId = await tdCreatePlaylist(j.name, j.isPublic, `create-${j.id}-${j.createdAt}`);
+    j.batchesDone = 0; j.phase = "adding"; await DB.put(j);
+  }
+
+  // 4. Add matched tracks in order, 50 at a time
+  if (j.phase === "adding") {
+    const ids = j.matches.filter(Boolean);
+    const batches = Math.ceil(ids.length / ADD_BATCH);
+    for (let b = j.batchesDone || 0; b < batches; b++) {
+      checkStop();
+      const chunk = ids.slice(b * ADD_BATCH, (b + 1) * ADD_BATCH);
+      await tdAddItems(j.tidalId, chunk, `${j.tidalId}-${b}-${j.createdAt}`);
+      j.batchesDone = b + 1; await DB.put(j);
+      updateJobEl(j, 0.8 + ((b + 1) / batches) * 0.2);
+    }
+    j.phase = "done"; await DB.put(j);
+    updateJobEl(j, 1);
+  }
+}
+
+/* ============================== screens ============================== */
+let playlists = [];
+const selected = new Set();
+
+function refreshConnectUI() {
+  const cfg = LS.get("cfg", {});
+  const ready = !!(cfg.spClientId && cfg.tdClientId);
+  show("setupCard", !ready || $("setupCard").dataset.forced === "1");
+  show("connectCard", ready);
+  const sp = LS.get("tok.sp"), td = LS.get("tok.td");
+  $("spDot").classList.toggle("on", !!sp); $("tdDot").classList.toggle("on", !!td);
+  const spu = LS.get("spUser");
+  $("spStatus").textContent = sp ? "Spotify: connected" + (spu?.name ? ` as ${spu.name}` : "") : "Spotify: not connected";
+  $("tdStatus").textContent = td ? "Tidal: connected" : "Tidal: not connected";
+  $("spConnect").textContent = sp ? "Reconnect" : "Connect";
+  $("tdConnect").textContent = td ? "Reconnect" : "Connect";
+  return ready && sp && td;
+}
+
+function renderPlaylists() {
+  const box = $("plList");
+  if (!playlists.length) { box.innerHTML = `<div class="pl"><span class="meta">No playlists found.</span></div>`; return; }
+  box.innerHTML = "";
+  for (const p of playlists) {
+    const row = document.createElement("label");
+    row.className = "pl" + (p.own ? "" : " disabled");
+    row.innerHTML = `<input type="checkbox" ${p.own ? "" : "disabled"} ${selected.has(p.id) ? "checked" : ""}>
+      <span class="grow"><div class="name">${esc(p.name)}</div>
+      <div class="meta">${p.total} songs${p.own ? "" : " · by " + esc(p.owner) + " · Spotify only lets apps read playlists you own"}</div></span>`;
+    const cb = row.querySelector("input");
+    cb.onchange = () => { cb.checked ? selected.add(p.id) : selected.delete(p.id); updateSel(); };
+    box.appendChild(row);
+  }
+  updateSel();
+}
+function updateSel() {
+  const n = selected.size;
+  const songs = playlists.filter((p) => selected.has(p.id)).reduce((s, p) => s + p.total, 0);
+  $("selCount").textContent = n ? `${n} selected · ${songs} songs` : "0 selected";
+  $("startBtn").disabled = !n || running;
+}
+
+async function loadPlaylists() {
+  show("playlistCard");
+  $("plList").innerHTML = `<div class="pl"><span class="meta">Loading your Spotify playlists…</span></div>`;
+  try {
+    playlists = await spPlaylists();
+    refreshConnectUI();
+    renderPlaylists();
+  } catch (e) {
+    if (e instanceof AuthError) { LS.del("tok.sp"); refreshConnectUI(); show("playlistCard", false); $("connectErr").textContent = e.message; return; }
+    $("plList").innerHTML = `<div class="pl"><span class="err">${esc(e.message)}</span></div>`;
+  }
+}
+
+function showResume(jobs) {
+  const left = jobs.filter((j) => j.phase !== "done");
+  if (!left.length) { show("resumeCard", false); return; }
+  $("resumeText").textContent = `${left.length} playlist${left.length > 1 ? "s" : ""} still to finish: ${left.map((j) => j.name).join(", ")}.`;
+  show("resumeCard");
+}
+
+async function start() {
+  const chosen = playlists.filter((p) => selected.has(p.id));
+  if (!chosen.length) return;
+  try { await ensureCountry(); }
+  catch (e) { if (e instanceof AuthError) { LS.del("tok.td"); refreshConnectUI(); $("connectErr").textContent = e.message; return; } }
+  await DB.clear();
+  for (const [i, p] of chosen.entries()) await DB.put(newJob(p, i));
+  $("progressNote").textContent = "Keep this page open and the screen on. If it stops, reopen it and press Resume. Nothing is lost.";
+  runJobs();
+}
+
+/* ============================== wiring ============================== */
+async function init() {
+  $("redirectUri").textContent = REDIRECT_URI;
+  const cfg = LS.get("cfg", {});
+  $("spClientId").value = cfg.spClientId || "";
+  $("tdClientId").value = cfg.tdClientId || "";
+
+  $("copyRedirect").onclick = () => copyText(REDIRECT_URI);
+  $("saveCfg").onclick = () => {
+    const sp = $("spClientId").value.trim(), td = $("tdClientId").value.trim();
+    if (!sp || !td) { $("cfgErr").textContent = "Both Client IDs are needed."; return; }
+    const old = LS.get("cfg", {});
+    if (old.spClientId !== sp) LS.del("tok.sp");
+    if (old.tdClientId !== td) LS.del("tok.td");
+    LS.set("cfg", { spClientId: sp, tdClientId: td });
+    $("cfgErr").textContent = ""; $("setupCard").dataset.forced = "0";
+    toast("Saved"); boot();
+  };
+  $("editSetup").onclick = () => { $("setupCard").dataset.forced = "1"; show("setupCard"); $("setupCard").scrollIntoView({ behavior: "smooth" }); };
+  $("logout").onclick = () => { LS.del("tok.sp"); LS.del("tok.td"); LS.del("spUser"); LS.del("tdCountry"); tdCountry = null; show("playlistCard", false); refreshConnectUI(); };
+  $("spConnect").onclick = () => beginLogin("sp");
+  $("tdConnect").onclick = () => beginLogin("td");
+  $("selectAll").onclick = () => { playlists.filter((p) => p.own).forEach((p) => selected.add(p.id)); renderPlaylists(); };
+  $("selectNone").onclick = () => { selected.clear(); renderPlaylists(); };
+  $("reloadPl").onclick = loadPlaylists;
+  $("startBtn").onclick = start;
+  $("stopBtn").onclick = () => { stopRequested = true; $("stopBtn").disabled = true; toast("Pausing after the current step…"); setTimeout(() => { $("stopBtn").disabled = false; }, 4000); };
+  $("doneBtn").onclick = async () => { show("progressCard", false); if (refreshConnectUI()) loadPlaylists(); };
+  $("resumeBtn").onclick = () => { if (!refreshConnectUI()) { toast("Connect both services first"); return; } runJobs(); };
+  $("discardBtn").onclick = async () => { await DB.clear(); show("resumeCard", false); toast("Discarded"); };
+
+  await handleRedirect();
+  boot();
+}
+
+async function boot() {
+  const ok = refreshConnectUI();
+  const jobs = (await DB.all()).sort((a, b) => a.order - b.order);
+  if (jobs.some((j) => j.phase !== "done")) showResume(jobs);
+  if (ok) loadPlaylists();
+}
+
+init();
+</script>
+</body>
+</html>
